@@ -4,6 +4,7 @@ ASC - Web Application Security Control
 Main application entry point.
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -12,10 +13,11 @@ from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 
+
 from .config import get_settings
 from .models.database import init_db, get_db, async_session_maker
 from .models.category import SoftwareCategory, PREDEFINED_CATEGORIES
-from .services.exploit_scraper import load_sample_exploits, ExploitScraper
+from .services.exploitdb_git_loader import load_sample_exploits, start_loading_exploits
 from .services.sparql_service import get_sparql_service
 from .services.pubsub import get_pubsub_service, publish_exploit_alert
 from .services.websub import get_websub_hub
@@ -85,6 +87,8 @@ async def lifespan(app: FastAPI):
     logger.info("Cache proxy initialized")
     
     logger.info(f"ASC running at http://{settings.host}:{settings.port}")
+
+    asyncio.create_task(start_loading_exploits())
     
     yield
     
