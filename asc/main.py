@@ -656,11 +656,9 @@ def get_dashboard_html() -> str:
                 
                 // Add new alert to list
                 const payload = data.payload || data;
-                const severity = payload.severity || 'unknown';
                 
                 const alertHtml = `
                     <div class="alert-item">
-                        <span class="alert-severity severity-${{severity}}">${{severity}}</span>
                         <div class="alert-content">
                             <div class="alert-title">${{payload.title || 'New Alert'}}</div>
                             <div class="alert-meta">
