@@ -352,3 +352,44 @@ def get_websub_hub() -> WebSubHub:
         ]:
             _websub_hub.register_topic(topic)
     return _websub_hub
+
+async def publish_exploit_alert(exploit_data: Dict) -> None:
+    """
+    Publish an exploit alert to relevant topics.
+    
+    Args:
+        exploit_data: Exploit information dictionary
+    """
+    pubsub = get_websub_hub()
+    
+    # Prepare alert payload
+    payload = {
+        "type": "new_exploit",
+        "exploit_id": exploit_data.get("id") or exploit_data.get("exploit_db_id"),
+        "title": exploit_data.get("title"),
+        "severity": exploit_data.get("severity", "unknown"),
+        "software_type": exploit_data.get("software_type"),
+        "exploit_type": exploit_data.get("exploit_type"),
+        "platform": exploit_data.get("platform"),
+        "cve_id": exploit_data.get("cve_id"),
+        "source_url": exploit_data.get("source_url"),
+        "timestamp": datetime.now().isoformat(),
+    }
+    
+    # Publish to general topic
+    await pubsub.publish("alerts.all", payload)
+    
+    # Publish to severity-specific topic
+    severity = exploit_data.get("severity", "").lower()
+    if severity in ["critical", "high"]:
+        await pubsub.publish(f"alerts.{severity}", payload)
+    
+    # Publish to software type topic
+    software_type = exploit_data.get("software_type", "").lower()
+    if software_type and software_type in ["cms", "framework", "plugin", "shopping_cart", "forum"]:
+        await pubsub.publish(f"alerts.{software_type}", payload)
+    
+    # Publish to exploit type topic
+    exploit_type = exploit_data.get("exploit_type", "").lower()
+    if exploit_type in ["sqli", "xss", "rce"]:
+        await pubsub.publish(f"alerts.{exploit_type}", payload)
