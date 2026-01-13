@@ -31,13 +31,13 @@ A "smart" DDS (Data Distribution Service) publish/subscribe system providing rea
 │                    │  DDS Pub/Sub │<───────>│   REST API   │        │
 │                    │    System    │         │  (FastAPI)   │        │
 │                    └──────────────┘         └──────────────┘        │
-│                           │                        │                 │
-│              ┌────────────┼────────────┐          │                 │
-│              ▼            ▼            ▼          ▼                 │
-│       ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐          │
-│       │ WebSub   │ │WebSocket │ │  Email   │ │  Smart   │          │
-│       │   Hub    │ │  Alerts  │ │  Alerts  │ │  Proxy   │          │
-│       └──────────┘ └──────────┘ └──────────┘ └──────────┘          │
+│                           │                                          │
+│              ┌────────────┼────                                      │
+│              ▼            ▼                                          │
+│       ┌──────────┐ ┌──────────┐                                     │
+│       │ WebSub   │ │WebSocket │                                     │
+│       │   Hub    │ │  Alerts  │                                     │
+│       └──────────┘ └──────────┘                                     │
 │                                                                      │
 │  Output Formats: HTML+RDFa │ JSON-LD │ Turtle │ N-Triples           │
 └─────────────────────────────────────────────────────────────────────┘
