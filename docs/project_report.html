@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ASC (Web Application Security Control)</title>
+  <style>
+    @page { size: A4; margin: 20mm; }
+    body { font-family: Georgia, 'Times New Roman', Times, serif; line-height:1.45; background: #efefef; padding: 20mm; color: #111; }
+    .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; box-shadow: 0 8px 20px rgba(0,0,0,0.08); padding: 20mm; box-sizing: border-box; }
+    header { text-align:center; margin-bottom: 12mm; }
+    h1 { font-size: 20pt; margin-bottom: 4mm; }
+    h2 { font-size:16pt; margin-top:8mm; }
+    h3 { font-size:14pt; margin-top:6mm; }
+    .toc { margin-bottom: 6mm; }
+    pre { background:#f6f6f6; padding:8px; border-radius:6px; overflow:auto; font-size:10pt; }
+    code { font-family: Consolas, 'Courier New', monospace; font-size: 10pt; }
+    .note { background:#fffbe6; padding:10px; border-left:4px solid #ffd24d; }
+    footer { margin-top:12mm; font-size:10pt; color:#555; }
+    @media print {
+      body { background: white; padding: 0; }
+      .page { box-shadow: none; margin: 0; padding: 8mm; }
+      pre { page-break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+  <header>
+    <h1>ASC (Web Application Security Control) Scholarly HTML Technical Report</h1>
+    <p><strong>Focus:</strong> internal data structures, API design (REST), RDF knowledge modelling, external linked-data integration and SPARQL usage</p>
+    
+  </header>
+
+  <section class="toc">
+    <strong>Contents</strong>
+    <ol>
+      <li>Executive summary</li>
+      <li>System overview and repository context</li>
+      <li>Internal data structures and domain models</li>
+      <li>API architecture: REST design</li>
+      <li>RDF-based knowledge models: vocabularies and expressiveness</li>
+      <li>External data/knowledge sources & SPARQL queries</li>
+      <li>Linked Data compliance and pragmatic considerations</li>
+      <li>Security, provenance and privacy considerations</li>
+      <li>Deployment, performance and operational notes</li>
+      <li>Appendices: SPARQL queries, JSON-LD and Turtle fragments</li>
+      <li>References</li>
+    </ol>
+  </section>
+
+  <h2>1. Executive summary</h2>
+  <p>This report documents the data modelling, API design (REST), RDF knowledge modelling and external linked-data integration strategy implemented and intended for WADe-2025, a web application present in the working repository. It captures the internal Python models, the mapping to RDF (for knowledge graphs), REST interface design, and a set of pragmatic SPARQL queries that illustrate non-trivial retrieval and linking approaches using DBpedia and Wikidata. The report emphasizes reproducible patterns, interoperability with existing vocabularies (e.g., schema.org, Dublin Core, PROV, SKOS), and respects linked-data principles.</p>
+
+  <h2>2. System overview and repository context</h2>
+  <p>The system is organized into cohesive modules reflecting a layered, modular architecture:</p>
+  <ul>
+    <li><strong>Models module:</strong> contains domain model definitions and the persistence mapping for canonical exploit, category and subscription entities.</li>
+    <li><strong>API module:</strong> implements the HTTP interface and content-negotiation for resource access and export (JSON, JSON-LD, RDF serializations).</li>
+    <li><strong>Services module:</strong> encapsulates business logic, background ingestion/enrichment workers, pub/sub integration, and caching/enrichment coordination.</li>
+    <li><strong>Core application module:</strong> composes the modules, configures routing, dependency injection and background task orchestration.</li>
+  </ul>
+  <p>The domain centers on security-related "exploit" resources, their categorization, and pub/sub-style subscription management. The architecture separates a persistence layer (relational storage for authoritative records), an application services layer for ingestion and enrichment, an API layer for client access and RDF export, and an RDF/SPARQL capability for knowledge representation and federated queries.</p>
+
+  <h3>End users</h3>
+  <p>The primary end users of this application are:</p>
+  <ul>
+    <li>Security researchers and vulnerability analysts who need searchable exploit metadata and provenance.</li>
+    <li>Incident responders and CERT teams requiring timely exploit indicators and references.</li>
+    <li>Vulnerability management teams and security operations (SecOps) integrating exploit data into workflows.</li>
+    <li>Security product vendors and integrators who will consume the API for enrichment and alerts.</li>
+    <li>Academic researchers and threat intelligence analysts using RDF/SPARQL for large-scale analysis.</li>
+    <li>Subscribers (systems or users) who receive notifications about new or changed exploits via the subscription service.</li>
+  </ul>
+
+  <h2>3. Internal data structures and domain models</h2>
+  <p>This section details the main domain objects, their fields, and relationships as used within the application. The design aims to allow both conventional REST CRUD flows and RDF mapping for linked-data exposure.</p>
+
+  <h3>3.1 Primary domain objects</h3>
+  <p>Based on the repository layout and conventional naming, the primary domain objects are:</p>
+  <ul>
+    <li><strong>Exploit</strong> — represents a security exploit entry with attributes such as identifier, title, description, date-discovered/published, affected products, CWE/CVE references, authors, source, severity, and links to external resources.</li>
+    <li><strong>Category</strong> — taxonomy or tagging concept (e.g., type of vulnerability or exploit class). May be hierarchical (SKOS-like) so classification is flexible.</li>
+    <li><strong>Subscription</strong> — user or system subscriptions to notifications about new or updated exploits matching criteria (filters, categories, keywords).</li>
+  </ul>
+
+  <h3>3.2 Representative Python model (schema)</h3>
+  <p>Below is a consolidated, language-agnostic schema reflecting `asc/models` objects, shown in JSON Schema-like form for clarity:</p>
+  <pre><code>{
+  "Exploit": {
+    "id": "string",          // stable internal ID (e.g., UUID or numeric)
+    "externalId": "string", // optional external DB ID (ExploitDB, CVE)
+    "title": "string",
+    "description": "string",
+    "published": "date-time",
+    "modified": "date-time",
+    "affectedProducts": ["string"],
+    "cves": ["string"],
+    "cwess": ["string"],
+    "severity": "string",   // e.g., CVSS vector or human label
+    "references": [ {"label":"string","url":"uri"} ],
+    "categories": ["Category.id"],
+    "metadata": {"source":"string","importedFrom":"string","provenance":{}}
+  }
+}
+</code></pre>
+
+  <h3>3.3 Relationships and cardinalities</h3>
+  <ul>
+    <li>Exploit — many-to-many — Category</li>
+    <li>Subscription — many-to-one — User/System (if users exist), or direct criteria</li>
+    <li>Exploit — zero-or-more — external references (CVE, NVD, vendor advisories)</li>
+  </ul>
+
+  <h3>3.4 Persistence considerations</h3>
+  <p>The system adopts a hybrid persistence strategy aligned with operational and analytical needs:</p>
+  <ul>
+    <li>Primary operational data is stored in a relational database (for example, Postgres in production and SQLite for development) to ensure ACID guarantees for CRUD workflows.</li>
+    <li>An RDF representation can be generated on demand or materialized periodically into a triple store to support SPARQL queries, federated lookups, and knowledge-graph style analyses.</li>
+    <li>Transformations between the relational model and RDF are performed by background workers or pipelines to avoid adding latency to request handling; caching and synchronization policies manage consistency between stores.</li>
+  </ul>
+
+  <h2>4. API architecture: REST</h2>
+  <p>The system exposes programmatic access via REST. This section describes canonical endpoints, response formats, and design rationale.</p>
+
+  <h3>4.1 REST API</h3>
+  <p>Design principles:</p>
+  <ul>
+    <li>Resources are nouns with stable URIs: /api/exploits/, /api/exploits/{id}, /api/categories/, /api/subscriptions/</li>
+    <li>Support for content-negotiation: JSON (application/json), JSON-LD (application/ld+json), Turtle/N-Triples for RDF exports</li>
+    <li>Pagination, filtering, sorting via query parameters</li>
+    <li>Use HTTP verbs properly: GET (retrieve), POST (create), PUT/PATCH (update), DELETE (remove)</li>
+  </ul>
+
+  <h4>Example endpoints</h4>
+  <pre><code>GET  /api/exploits?category=web&min_cvss=7.0&page=1&per_page=25
+GET  /api/exploits/{id}  (Accept: application/ld+json for RDF/JSON-LD)
+POST /api/exploits  (create new exploit or ingest payload)
+GET  /api/categories
+GET  /api/subscriptions?owner=system
+POST /api/subscriptions
+DELETE /api/subscriptions/{id}
+</code></pre>
+
+  <h4>Request/response example (JSON-LD export)</h4>
+  <pre><code>GET /api/exploits/EXP-2024-001 Accept: application/ld+json
+
+HTTP/1.1 200 OK
+Content-Type: application/ld+json
+
+{
+  "@context": {
+    "wa": "https://wade.example.org/vocab#",
+    "dcterms": "http://purl.org/dc/terms/",
+    "schema": "http://schema.org/"
+  },
+  "@id": "https://wade.example.org/exploit/EXP-2024-001",
+  "@type": "wa:Exploit",
+  "schema:name": "Example exploit",
+  "dcterms:issued": "2024-10-01T00:00:00Z",
+  "wa:severity": "HIGH",
+  "wa:cve": ["CVE-2024-12345"]
+}
+</code></pre>
+
+  
+
+  <h2>5. RDF-based knowledge models: vocabularies and expressiveness</h2>
+  <p>Mapping the internal models to RDF enables rich integration, reuse of external vocabularies, and interlinking with DBpedia/Wikidata. The design follows a minimal WADe ontology supplemented with well-known vocabularies:</p>
+  <ul>
+    <li>schema.org — for descriptive fields (e.g., `schema:name`, `schema:description`, `schema:datePublished`).</li>
+    <li>dcterms (Dublin Core Terms) — for provenance, date fields and identifiers.</li>
+    <li>PROV-O — for recording provenance of imported records.</li>
+    <li>SKOS — for category/taxonomy representation and hierarchical relations.</li>
+    <li>An application-specific vocabulary for domain-specific properties (e.g., severity, CVE identifiers, affected products).</li>
+  </ul>
+
+  <h3>5.1 Example RDF/Turtle fragment for an Exploit (illustrative)</h3>
+  <pre><code>@prefix schema: &lt;http://schema.org/&gt; .
+@prefix dcterms: &lt;http://purl.org/dc/terms/&gt; .
+
+&lt;http://example.org/exploit/EXP-2024-001&gt; a schema:CreativeWork;
+  schema:name "Buffer overflow in FooLib 1.2";
+  schema:description "A remote buffer overflow...";
+  schema:datePublished "2024-10-01T00:00:00Z"^^xsd:dateTime .
+</code></pre>
+
+  <h3>5.2 Expressiveness and tradeoffs</h3>
+  <p>The WADe vocabulary keeps semantics simple to maximize interoperability. Key tradeoffs:</p>
+  <ul>
+    <li>Using `schema.org` and `dcterms` increases discoverability and reuse but may lack domain-specific expressiveness for detailed vulnerability metadata (CVSS vectors, exploit proof-of-concept metadata). For those, `wa:` properties or an extension vocabulary are used.</li>
+    <li>SKOS vocabulary models categories well but does not capture computational metrics; those fields are stored as typed literals.</li>
+    <li>Richer provenance should use PROV-O to capture import sources and transformations to support auditability.</li>
+  </ul>
+
+  <h2>6. External data/knowledge sources & SPARQL queries</h2>
+  <p>Integrating DBpedia, Wikidata, NVD feeds and vendor advisories provides context and linking opportunities. The system consumes structured external sources via background ingestion and enrichment components in the services module and through federated SPARQL queries where appropriate.</p>
+
+  <h3>6.1 Pragmatic integration patterns</h3>
+  <ul>
+    <li><strong>Local canonical store + external links:</strong> Keep a local canonical representation of exploits and record external identifiers or links to relevant resources (DBpedia / Wikidata / NVD) for enrichment.</li>
+    <li><strong>On-demand federated lookup:</strong> For enrichment, use SPARQL SERVICE calls against remote endpoints (Wikidata Query Service) — cache results to avoid rate-limits.</li>
+    <li><strong>Periodic batch enrichment:</strong> Scheduled tasks that fetch and reconcile external identifiers (e.g., map product names to external knowledge base identifiers).</li>
+  </ul>
+
+  <h3>6.2 Representative SPARQL queries</h3>
+  <p>Below are example queries that can be executed against Wikidata or DBpedia to obtain additional context for software products, CVE mappings, and author attributions. These queries illustrate non-trivial use of ranks, OPTIONAL, FILTERs, and SERVICE patterns.</p>
+
+  <h4>6.2.1 Find Wikidata items for a software product name (fuzzy-ish match)</h4>
+  <pre><code>## Wikidata SPARQL: Find candidates for "FooLib" (software)
+SELECT ?item ?itemLabel ?instanceOfLabel WHERE {
+  ?item wdt:P31/wdt:P279* wd:Q7397 .   # instance of software
+  ?item rdfs:label ?itemLabel .
+  FILTER(CONTAINS(LCASE(STR(?itemLabel)), "foolib")) .
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en" }
+}
+LIMIT 50
+</code></pre>
+
+  <h4>6.2.2 DBpedia: get pages that mention a CVE identifier in the abstract</h4>
+  <pre><code>## DBpedia SPARQL (public endpoint) - find resources mentioning a CVE
+PREFIX dbo: &lt;http://dbpedia.org/ontology/&gt;
+SELECT DISTINCT ?resource ?label WHERE {
+  ?resource dbo:abstract ?abstract .
+  FILTER(langMatches(lang(?abstract), "EN"))
+  FILTER(CONTAINS(LCASE(STR(?abstract)), "cve-2024-12345"))
+  ?resource rdfs:label ?label .
+  FILTER(langMatches(lang(?label), "EN"))
+}
+LIMIT 100
+</code></pre>
+
+  <h4>6.2.3 Federated query: correlate local exploit CVE identifiers with Wikidata</h4>
+  <pre><code>## Example: find Wikidata items that mention a CVE identifier found locally
+PREFIX schema: &lt;http://schema.org/&gt;
+SELECT ?exploit ?title ?cve ?wd WHERE {
+  ?exploit a ?type ; schema:name ?title ; ?cvePredicate ?cve .
+  SERVICE &lt;https://query.wikidata.org/sparql&gt; {
+    ?wd skos:altLabel ?alt .
+    FILTER(LANG(?alt) = "en")
+    FILTER(CONTAINS(LCASE(STR(?alt)), LCASE(?cve)))
+    ?wd rdfs:label ?wdLabel .
+    FILTER(LANG(?wdLabel) = "en")
+  }
+}
+LIMIT 100
+</code></pre>
+
+  <h3>6.3 SPARQL design recommendations</h3>
+  <ul>
+    <li>Always include language filters when selecting labels from multilingual endpoints.</li>
+    <li>Cache results and materialize joins where performance matters — repeated cross-endpoint SERVICE calls will be slow and rate-limited.</li>
+    <li>Use pagination (OFFSET/LIMIT) or cursors to avoid heavy queries against public endpoints.</li>
+    <li>When doing fuzzy name matching, use tokenization or external string-similarity services rather than naive CONTAINS().</li>
+  </ul>
+
+  <h2>7. Linked Data compliance and pragmatic considerations</h2>
+  <p>The system follows Linked Data principles:</p>
+  <ol>
+    <li>Use URIs to identify things: each exploit and category should have a stable HTTP URI.</li>
+    <li>Use HTTP URIs so clients can look up things; support content negotiation to return HTML or machine-readable RDF serializations.</li>
+    <li>Provide useful information on dereferencing: serve JSON-LD, Turtle, and HTML representations where appropriate.</li>
+    <li>Include links or external identifiers to other URIs for interoperability with external knowledge sources.</li>
+  </ol>
+
+  <h3>7.1 Practical trade-offs</h3>
+  <ul>
+    <li>Authority and canonicalization: The application keeps canonical internal identifiers mapped to external URIs. This allows internal control of the canonical representation while still linking outward.</li>
+    <li>Caching and rate-limits: Public SPARQL endpoints have rate limits; use local caching and scheduled enrichment jobs.</li>
+    <li>RDF serializations: JSON-LD is preferred for API exposure because it maps naturally to existing JSON-based REST clients and can round-trip into RDF stores.</li>
+  </ul>
+
+  <h2>8. Appendices</h2>
+
+  <h3>8.1 Appendix A — Useful SPARQL queries (collected)</h3>
+  <p>More advanced query: correlate CVE items on Wikidata to local exploit entries using sameAs links.</p>
+  <pre><code>PREFIX schema: &lt;http://schema.org/&gt;
+SELECT ?exploit ?title ?cve ?wd WHERE {
+  ?exploit a ?type ; schema:name ?title ; ?cvePredicate ?cve .
+  SERVICE &lt;https://query.wikidata.org/sparql&gt; {
+    ?wd skos:altLabel ?alt .
+    FILTER(LANG(?alt) = "en")
+    FILTER(CONTAINS(LCASE(?alt), LCASE(?cve)))
+    ?wd rdfs:label ?wdLabel .
+    FILTER(LANG(?wdLabel) = "en")
+  }
+}
+LIMIT 200
+</code></pre>
+
+  <h3>8.2 Appendix B — JSON-LD context and compact example</h3>
+  <pre><code>{
+  "@context": {
+    "schema": "http://schema.org/",
+    "dcterms": "http://purl.org/dc/terms/",
+    "id": "@id",
+    "type": "@type",
+    "name": "schema:name",
+    "description": "schema:description",
+    "issued": "dcterms:issued"
+  },
+  "@id": "http://example.org/exploit/EXP-2024-001",
+  "type": "Exploit",
+  "name": "Buffer overflow in FooLib 1.2",
+  "issued": "2024-10-01T00:00:00Z"
+}
+</code></pre>
+
+  <h3>8.3 Appendix C — Mapping table: Python model → RDF</h3>
+  <pre><code>Python attribute     RDF predicate
+------------------    --------------------------------
+id                    @id (canonical HTTP URI for the resource)
+externalId            dcterms:identifier
+title                 schema:name
+description           schema:description
+published             dcterms:issued
+modified              dcterms:modified
+cves                  application-specific predicate for CVE identifiers (literal or URI)
+categories            skos:Concept each; skos:inScheme for taxonomy
+references            external identifier or link predicates
+provenance.metadata   prov:wasDerivedFrom, prov:generatedAtTime
+</code></pre>
+
+  <h2>9. References</h2>
+  <ul>
+    <li>Berners-Lee, T. "Linked Data" — principles and best practices.</li>
+    <li>W3C — RDF 1.1 Concepts and Abstract Syntax; PROV-O; SKOS; Dublin Core.</li>
+    <li>Wikidata Query Service documentation: https://query.wikidata.org/</li>
+    <li>DBpedia SPARQL endpoint documentation.</li>
+  </ul>
+
+  <footer>
+  </footer>
+</div>
+</body>
+</html>
