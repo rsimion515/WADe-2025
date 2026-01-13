@@ -74,6 +74,39 @@
     <li>Subscribers (systems or users) who receive notifications about new or changed exploits via the subscription service.</li>
   </ul>
 
+  <h2>Core components and services</h2>
+  <p>The following chapter provides a high-level description of the system's core components and services without referencing implementation details. It focuses on responsibilities and interactions between logical parts of the architecture.</p>
+
+  <h3>Core components</h3>
+  <ul>
+    <li><strong>Persistence layer</strong> — stores canonical records and transactional state for exploits, categories and subscriptions.</li>
+    <li><strong>Services layer</strong> — background workers and coordinating services that perform ingestion, enrichment, reconciliation and notification dispatch.</li>
+    <li><strong>API layer</strong> — exposes REST endpoints for resource access and supports multiple serializations for machine consumption.</li>
+    <li><strong>Knowledge access layer</strong> — components that produce or expose RDF representations and enable analytic queries over the knowledge view.</li>
+    <li><strong>Integration & cache</strong> — adapters and caching infrastructure used to enrich local data and reduce load on external sources.</li>
+    <li><strong>Operational tooling</strong> — scheduling, monitoring and job orchestration that ensure reliable background processing and pipeline visibility.</li>
+  </ul>
+
+  <h3>High-level services</h3>
+  <ul>
+    <li><strong>WebSub service</strong> — handles Pub/Sub-style subscriptions and delivery of notifications.</li>
+    <li><strong>SPARQL service</strong> — provides RDF-aware query capabilities and supports federated lookups for enrichment.</li>
+    <li><strong>Git loader</strong> — an ingestion component that imports exploit data from versioned git sources and normalizes it.</li>
+    <li><strong>Cache proxy</strong> — caches enrichment results and frequently requested representations to reduce latency and external query volume.</li>
+  </ul>
+
+  <h2>API overview</h2>
+  <p>The API layer groups resources by concern and provides clear resource modelling, stable identifiers, and consistent pagination and filtering semantics. Typical API groups include:</p>
+  <ul>
+    <li><strong>The Exploits API</strong> — retrieval, search and export of exploit entries, with filters for category, severity, CVE identifiers and time windows.</li>
+    <li><strong>The Categories API</strong> — list and explore classification concepts used for organization.</li>
+    <li><strong>The Subscriptions API</strong> — create, list and manage subscription criteria and inspect notification status.</li>
+    <li><strong>The SPARQL API</strong> — analytic interfaces for RDF-based queries and batch exports.</li>
+    <li><strong>The WebSub API</strong> — endpoints to manage pub/sub subscriptions and delivery.</li>
+  </ul>
+
+  <p>Design guidance: expose stable resource URIs, support content negotiation for RDF exports, return consistent pagination metadata, and include navigational links where they aid discovery.</p>
+
   <h2>3. Internal data structures and domain models</h2>
   <p>This section details the main domain objects, their fields, and relationships as used within the application. The design aims to allow both conventional REST CRUD flows and RDF mapping for linked-data exposure.</p>
 
