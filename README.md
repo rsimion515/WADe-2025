@@ -1,5 +1,7 @@
 # ASC - Web Application Security Control
 
+Demo Video: https://drive.google.com/file/d/1cmTaLhdpZxnOwpVpbWx5CmBCCZwHgMY-/view?usp=sharing
+
 A "smart" DDS (Data Distribution Service) publish/subscribe system providing real-time alerts about web application security vulnerabilities, with SPARQL-based querying and multiple output formats.
 
 ## Features

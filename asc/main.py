@@ -526,7 +526,6 @@ def get_dashboard_html() -> str:
                 <p>Query the security knowledge graph using SPARQL. Access semantic data about vulnerabilities, solutions, and affected software.</p>
                 <div class="card-links">
                     <a href="/sparql">Query Interface</a>
-                    <a href="/sparql/examples">Examples</a>
                     <a href="/sparql/ontology">Ontology</a>
                 </div>
             </div>
@@ -547,7 +546,6 @@ def get_dashboard_html() -> str:
                 <h2>Real-time Alerts</h2>
                 <p>Connect via WebSocket for instant vulnerability notifications. Subscribe to specific categories or severity levels.</p>
                 <div class="card-links">
-                    <a href="#" onclick="connectWebSocket()">Connect</a>
                     <a href="/api/subscriptions/topics/list">Topics</a>
                 </div>
             </div>

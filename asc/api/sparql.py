@@ -6,11 +6,13 @@ with support for multiple RDF serialization formats.
 """
 
 from typing import Optional
+import html
 from fastapi import APIRouter, Query, HTTPException, Response
 from fastapi.responses import JSONResponse, HTMLResponse
 
 from ..services.sparql_service import get_sparql_service, EXAMPLE_QUERIES
 from ..config import get_settings
+from urllib.parse import quote
 
 router = APIRouter(prefix="/sparql", tags=["sparql"])
 settings = get_settings()
@@ -174,7 +176,7 @@ def results_to_html(results: list, query: str) -> str:
 <body>
     <div class="container">
         <h1>🔍 SPARQL Query Results</h1>
-        <div class="query-box">{query}</div>
+        <div class="query-box">{html.escape(query)}</div>
         <p class="count">{len(results)} results</p>
         <table>
             <thead><tr>{header_html}</tr></thead>
@@ -202,7 +204,7 @@ def get_empty_results_html(query: str) -> str:
     <div class="container">
         <h1>No Results Found</h1>
         <p>Your query returned no results.</p>
-        <div class="query">{query}</div>
+        <div class="query">{html.escape(query)}</div>
         <p><a href="/sparql" style="color: #f43f5e;">Try another query</a></p>
     </div>
 </body>
@@ -258,8 +260,8 @@ def get_sparql_documentation() -> str:
         example_queries_html += f'''
         <div class="example">
             <h3>{name.replace("_", " ").title()}</h3>
-            <pre>{query.strip()}</pre>
-            <a href="/sparql?query={query.strip().replace(' ', '+').replace(chr(10), '%0A')}&format=html" 
+            <pre>{html.escape(query.strip())}</pre>
+            <a href="/sparql?query={quote(query.strip())}&format=html" 
                class="run-btn">Run Query</a>
         </div>
         '''
